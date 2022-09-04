@@ -4,7 +4,7 @@ class Database:
 
     # 설정 정보 가져 오기
     config = configparser.ConfigParser()
-    config.read('./secure.ini')
+    config.read('../secure/secure_api.ini')
 
     # encrypt key
     encrypt_key = config['encrypt']['encrypt_key']
