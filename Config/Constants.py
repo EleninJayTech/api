@@ -14,3 +14,4 @@ elif os.name == 'nt':
 ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
 ROOT_DIR = '{}/../'.format(ROOT_DIR)
 ROOT_DIR = path_slash(ROOT_DIR)
+

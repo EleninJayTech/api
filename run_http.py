@@ -8,8 +8,6 @@ if __name__ == "__main__":
                                 , port=8099
                                 , log_level="debug"
                                 )
-        server = uvicorn.Server(config)
-        server.run()
     else:
         config = uvicorn.Config("main:app"
                                 , reload=True
@@ -17,5 +15,5 @@ if __name__ == "__main__":
                                 , port=8099
                                 , log_level="debug"
                                 )
-        server = uvicorn.Server(config)
-        server.run()
+    server = uvicorn.Server(config)
+    server.run()
