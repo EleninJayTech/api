@@ -1,0 +1,70 @@
+class Database:
+    import configparser
+    import cryptocode
+
+    # 설정 정보 가져 오기
+    config = configparser.ConfigParser()
+    config.read('./secure.ini')
+
+    # encrypt key
+    encrypt_key = config['encrypt']['encrypt_key']
+
+    # db 설정
+    db_user = config['db']['user']
+    db_password = cryptocode.decrypt(config['db']['password'], encrypt_key)
+    db_host = config['db']['host']
+    db_port = config['db']['port']
+    db_database = config['db']['database']
+
+    db_connect = None
+
+    @classmethod
+    def database_connect(cls):
+        import mariadb
+
+        if cls.db_connect is None:
+            try:
+                cls.db_connect = mariadb.connect(
+                    user=str(cls.db_user),
+                    password=str(cls.db_password),
+                    host=str(cls.db_host),
+                    port=int(cls.db_port),
+                    database=str(cls.db_database)
+                )
+            except mariadb.Error as e:
+                print(f"Error connecting to MariaDB Platform: {e}")
+
+        return cls.db_connect
+
+    @classmethod
+    def query_fetch_all(cls, sql: str, return_column: bool = False):
+        fetch_data = []
+
+        if sql == '':
+            return fetch_data
+
+        if cls.db_connect is None:
+            cls.db_connect = cls.database_connect()
+
+        cursor = cls.db_connect.cursor()
+        cursor.execute("{}".format(sql))
+        fetch_data = cursor.fetchall()
+
+        if return_column:
+            # num_fields = len(cursor.description) # 필드 수
+            field_names = [i[0] for i in cursor.description]  # 필드 명 구하기
+            new_fetch_data = []
+            for data_list in fetch_data:
+                new_row = []
+
+                for field_idx, field_data in enumerate(data_list):
+                    new_row.append({'{}'.format(field_names[field_idx]): field_data})
+
+                new_fetch_data.append(new_row)
+            fetch_data = new_fetch_data
+
+        cursor.close()
+        cls.db_connect.close()
+        cls.db_connect = None
+
+        return fetch_data
