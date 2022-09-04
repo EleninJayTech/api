@@ -1,10 +1,11 @@
 class Database:
+    from Config.Constants import ROOT_DIR
     import configparser
     import cryptocode
 
     # 설정 정보 가져 오기
     config = configparser.ConfigParser()
-    config.read('../secure/secure_api.ini')
+    config.read('{}/../secure/secure_api.ini'.format(ROOT_DIR))
 
     # encrypt key
     encrypt_key = config['encrypt']['encrypt_key']

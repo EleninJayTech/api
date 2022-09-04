@@ -7,3 +7,6 @@ if os.name == 'posix':
 elif os.name == 'nt':
     # PC
     CURRENT_DEVICE = 'pc'
+
+# 루트 경로
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
