@@ -8,7 +8,7 @@ class Database:
     # 설정 정보 가져 오기
     config = configparser.ConfigParser()
 
-    secure_path = '{}/secure/secure_api.ini'.format(ROOT_DIR)
+    secure_path = '{}./../secure/secure_api.ini'.format(ROOT_DIR)
     secure_path = path_slash(secure_path)
 
     config.read(secure_path)
