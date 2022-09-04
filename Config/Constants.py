@@ -1,5 +1,8 @@
 import os
 
+from Config.Utility import path_slash
+
+
 # DEVICE
 if os.name == 'posix':
     # 리눅스
@@ -9,4 +12,6 @@ elif os.name == 'nt':
     CURRENT_DEVICE = 'pc'
 
 # 루트 경로
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
+ROOT_DIR = '{}/../..'.format(ROOT_DIR)
+ROOT_DIR = path_slash(ROOT_DIR)

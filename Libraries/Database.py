@@ -1,3 +1,6 @@
+from Config.Utility import path_slash
+
+
 class Database:
     from Config.Constants import ROOT_DIR
     import configparser
@@ -5,8 +8,11 @@ class Database:
 
     # 설정 정보 가져 오기
     config = configparser.ConfigParser()
-    config.read('{}/../secure/secure_api.ini'.format(ROOT_DIR))
 
+    secure_path = '{}/secure/secure_api.ini'.format(ROOT_DIR)
+    secure_path = path_slash(secure_path)
+
+    config.read(secure_path)
     # encrypt key
     encrypt_key = config['encrypt']['encrypt_key']
 
@@ -39,6 +45,11 @@ class Database:
 
     @classmethod
     def query_fetch_all(cls, sql: str, return_column: bool = False):
+        """
+        :param sql:
+        :param return_column:
+        :return:
+        """
         fetch_data = []
 
         if sql == '':
