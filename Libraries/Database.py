@@ -12,12 +12,15 @@ class Database:
     secure_path = path_slash(secure_path)
 
     config.read(secure_path)
+    ENVIRONMENT = config['system']['ENVIRONMENT']
     # encrypt key
     encrypt_key = config['encrypt']['encrypt_key']
 
     # db 설정
     db_user = config['db']['user']
     db_password = cryptocode.decrypt(config['db']['password'], encrypt_key)
+    if ENVIRONMENT == 'development':
+        db_password = ''
     db_host = config['db']['host']
     db_port = config['db']['port']
     db_database = config['db']['database']
