@@ -1,4 +1,4 @@
-from Config.Constants import CURRENT_DEVICE
+import os
 
 
 def path_slash(path_str: str):
@@ -7,7 +7,7 @@ def path_slash(path_str: str):
     :param path_str:
     :return:
     """
-    if CURRENT_DEVICE == 'pc':
+    if os.name == 'nt':
         path_str = path_str.replace('\\', '/')
     else:
         path_str = path_str.replace('/', '\\')

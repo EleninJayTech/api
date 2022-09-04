@@ -1,4 +1,5 @@
 from Config.Constants import CURRENT_DEVICE
+
 import uvicorn
 
 if __name__ == "__main__":

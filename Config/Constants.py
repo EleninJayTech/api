@@ -1,7 +1,6 @@
-import os
-
 from Config.Utility import path_slash
 
+import os
 
 # DEVICE
 if os.name == 'posix':

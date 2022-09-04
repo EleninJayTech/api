@@ -1,8 +1,7 @@
-from Config.Utility import path_slash
-
-
 class Database:
+    from Config.Utility import path_slash
     from Config.Constants import ROOT_DIR
+
     import configparser
     import cryptocode
 
