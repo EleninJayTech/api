@@ -1,6 +1,6 @@
-class Lotto:
+class LottoApi:
     @classmethod
-    def winning_number(cls, target_round: int):
+    def winning_number(cls, target_round=1):
         """
 
         :param target_round:
