@@ -6,5 +6,7 @@ class LottoApi:
         :param target_round:
         :return:
         """
-        api = 'https://www.dhlottery.co.kr/common.do?method=getLottoNumber&drwNo={}'.format(target_round)
-        return api
+        import requests
+        api_url = 'https://www.dhlottery.co.kr/common.do?method=getLottoNumber&drwNo={}'.format(target_round)
+        return_data = requests.get(api_url)
+        return return_data.json()
