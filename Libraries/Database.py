@@ -1,9 +1,10 @@
-from Libraries.Utility import path_slash
-from Core.Constants import ROOT_DIR
-
-import mariadb
 import configparser
+
 import cryptocode
+import mariadb
+import re
+from Core.Constants import ROOT_DIR
+from Libraries.Utility import path_slash
 
 
 class Database:
@@ -44,6 +45,42 @@ class Database:
                 print(f"Error connecting to MariaDB Platform: {e}")
 
         return cls.db_connect
+
+    @classmethod
+    def bind(cls, sql, data):
+        # 정규 표현식을 컴파일하여 재사용
+        pattern = re.compile(r':\w+')
+        matches = pattern.findall(sql)
+
+        # 필요한 파라미터 추출
+        params = [data[key[1:]] for key in matches]  # ':' 제거 및 데이터 추출
+        param_tuple = tuple(params)
+
+        # SQL 쿼리에서 실제로 사용되는 키에 대해서만 문자열 교체
+        formatted_sql = sql
+        for match in matches:
+            key = match[1:]  # ':' 제거
+            if key in data:
+                formatted_sql = formatted_sql.replace(match, '%s')
+
+        return formatted_sql, param_tuple
+
+    @classmethod
+    def bind2(cls, sql, data):
+        # 정규 표현식을 사용하여 :로 시작하는 단어 찾기
+        pattern = r':\w+'
+        matches = re.findall(pattern, sql)
+        params = []
+        for key in matches:
+            key = key.replace(':', '')
+            params.append(data[key])
+        param_tuple = tuple(params)
+
+        formatted_sql = sql
+        for key in data:
+            if key in formatted_sql:
+                formatted_sql = formatted_sql.replace(f':{key}', '%s')
+        return formatted_sql, param_tuple
 
     @classmethod
     def query_row(cls, sql: str):
@@ -106,24 +143,20 @@ class Database:
         return fetch_data
 
     @classmethod
-    def query(cls, sql: str):
+    def query(cls, sql: str, params=None):
         if sql == '':
             return False
 
         if cls.db_connect is None:
             cls.db_connect = cls.database_connect()
 
-        # 예외 처리
         try:
             cursor = cls.db_connect.cursor()
-            cursor.execute("{}".format(sql))
+            cursor.execute(sql, params)
             cls.db_connect.commit()
         except Exception as e:
             print(e)
             return False
 
         cursor.close()
-        # cls.db_connect.close()
-        # cls.db_connect = None
-
         return True

@@ -2,6 +2,7 @@ import configparser
 import io
 import zipfile
 
+import httpx
 import requests
 import xmltodict
 from fastapi import APIRouter, HTTPException
@@ -11,11 +12,24 @@ from Libraries.Utility import path_slash
 
 router = APIRouter()
 
-
-@router.get("/stock")
-async def stock():
+@router.get("/stock/corp_code/save")
+async def save_corp_code():
     from Libraries.Database import Database
     Database.db_database = 'stock'
+
+    sql1, array1 = Database.bind("INSERT INTO corp_code (corp_code, corp_name, stock_code, modify_date) VALUES (:corp_code, :corp_name, :stock_code, :modify_date) ON DUPLICATE KEY UPDATE corp_name = :corp_name, stock_code=:stock_code, modify_date=:modify_date", {"corp_code": 1234, "corp_name": "ADFEEE", "stock_code": "123123", "modify_date": "20130101"})
+    sql2, array2 = Database.bind("INSERT INTO corp_code (corp_code, corp_name, stock_code, modify_date) VALUES (:corp_code, :corp_name, :stock_code, :modify_date)", {"corp_code": 1234, "corp_name": "ADFEEE", "stock_code": "123123", "modify_date": "20130101"})
+    sql3, array3 = Database.bind("UPDATE corp_code SET corp_name = :corp_name", {"corp_name": "ADFEEE"})
+    sql4, array4 = Database.bind("UPDATE corp_code SET corp_name = :corp_name, stock_code = :stock_code, stock_code2 = :stock_code", {"corp_name": "ADFEEE", "stock_code": 134})
+
+    print(sql1, array1)
+    print(sql2, array2)
+    print(sql3, array3)
+    print(sql4, array4)
+
+    return "ok"
+
+    print("save_corp_code start")
 
     config = configparser.ConfigParser()
 
@@ -43,7 +57,6 @@ async def stock():
     try:
         dict_data = xmltodict.parse(xml)
         data = dict_data['result']['list']
-        # data = [{'corp_code': '00430964', 'corp_name': '굿앤엘에스', 'stock_code': None, 'modify_date': '20170630'}]
         for i in range(len(data)):
             corp_code = data[i]['corp_code']
             corp_name = data[i]['corp_name']
@@ -51,9 +64,47 @@ async def stock():
             if stock_code is None:
                 stock_code = ''
             modify_date = data[i]['modify_date']
-            SQL = "INSERT INTO corp_code (corp_code, corp_name, stock_code, modify_date) VALUES ('{}', '{}', '{}', '{}') ON DUPLICATE KEY UPDATE corp_name = '{}', stock_code='{}', modify_date='{}'".format(
-                corp_code, corp_name, stock_code, modify_date, corp_name, stock_code, modify_date)
-            Database.query(SQL)
+
+            SQL = """
+                INSERT INTO corp_code (corp_code, corp_name, stock_code, modify_date) 
+                VALUES (:corp_code, :corp_name, :stock_code, :modify_date) 
+                ON DUPLICATE KEY UPDATE corp_name=:corp_name, stock_code=:stock_code, modify_date=:modify_date
+            """
+            params = {'corp_code':corp_code,'corp_name':corp_name,'stock_code':stock_code,'modify_date':modify_date}
+            SQL, params = Database.bind(SQL, params)
+            if not Database.query(SQL, params):
+                print(f"Query failed: {SQL} with params {params}")
     except Exception as e:
         raise HTTPException(status_code=500, detail="Error parsing XML data")
-    return {"status": "ok"}
+
+    print("save_corp_code end")
+
+    return True
+
+
+@router.get("/stock/get-price")
+async def get_stock_price():
+    config = configparser.ConfigParser()
+
+    secure_path = '{}./secure.ini'.format(ROOT_DIR)
+    secure_path = path_slash(secure_path)
+
+    config.read(secure_path)
+    key = config['API_KEY']['DATA_GO_KR']
+    url = "https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo"
+
+    params = {
+        "serviceKey": key,
+        "numOfRows": "1000",
+        "pageNo": "1",
+        "resultType": "json",
+        "basDt": "20231227",
+        "beginBasDt": "20231226",
+        "endBasDt": "20231228",
+        "likeSrtnCd": "016790"
+    }
+    headers = {"accept": "*/*"}
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, params=params, headers=headers)
+        return response.json()
