@@ -17,18 +17,6 @@ async def save_corp_code():
     from Libraries.Database import Database
     Database.db_database = 'stock'
 
-    sql1, array1 = Database.bind("INSERT INTO corp_code (corp_code, corp_name, stock_code, modify_date) VALUES (:corp_code, :corp_name, :stock_code, :modify_date) ON DUPLICATE KEY UPDATE corp_name = :corp_name, stock_code=:stock_code, modify_date=:modify_date", {"corp_code": 1234, "corp_name": "ADFEEE", "stock_code": "123123", "modify_date": "20130101"})
-    sql2, array2 = Database.bind("INSERT INTO corp_code (corp_code, corp_name, stock_code, modify_date) VALUES (:corp_code, :corp_name, :stock_code, :modify_date)", {"corp_code": 1234, "corp_name": "ADFEEE", "stock_code": "123123", "modify_date": "20130101"})
-    sql3, array3 = Database.bind("UPDATE corp_code SET corp_name = :corp_name", {"corp_name": "ADFEEE"})
-    sql4, array4 = Database.bind("UPDATE corp_code SET corp_name = :corp_name, stock_code = :stock_code, stock_code2 = :stock_code", {"corp_name": "ADFEEE", "stock_code": 134})
-
-    print(sql1, array1)
-    print(sql2, array2)
-    print(sql3, array3)
-    print(sql4, array4)
-
-    return "ok"
-
     print("save_corp_code start")
 
     config = configparser.ConfigParser()
