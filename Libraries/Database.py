@@ -66,23 +66,6 @@ class Database:
         return formatted_sql, param_tuple
 
     @classmethod
-    def bind2(cls, sql, data):
-        # 정규 표현식을 사용하여 :로 시작하는 단어 찾기
-        pattern = r':\w+'
-        matches = re.findall(pattern, sql)
-        params = []
-        for key in matches:
-            key = key.replace(':', '')
-            params.append(data[key])
-        param_tuple = tuple(params)
-
-        formatted_sql = sql
-        for key in data:
-            if key in formatted_sql:
-                formatted_sql = formatted_sql.replace(f':{key}', '%s')
-        return formatted_sql, param_tuple
-
-    @classmethod
     def query_row(cls, sql: str):
         """
         :param sql:
