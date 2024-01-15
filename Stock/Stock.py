@@ -91,7 +91,24 @@ async def save_corp_code():
 
 
 @router.get("/stock/get-price")
-async def save_stock_price():
+async def target_stock_price():
+    '''
+    특정 기간 동안의 주식 가격 정보를 가져온다.
+    :return:
+    '''
+    start_date = datetime(2024, 1, 2)
+    end_date = datetime(2024, 1, 5)
+
+    current_date = start_date
+    while current_date <= end_date:
+        date_str = current_date.strftime("%Y%m%d")
+        await save_stock_price(date_str)
+        current_date += timedelta(days=1)
+
+    return True
+
+
+async def save_stock_price(target_date: str = None):
     """
     (새벽 3시) 공공데이터포털에서 주식 가격 정보를 가져온다.
     항상 2일 전 데이터를 저장한다.
@@ -104,14 +121,17 @@ async def save_stock_price():
     key = await read_config('API_KEY', 'DATA_GO_KR')
     url = "https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo"
 
-    yesterday = (datetime.today() - timedelta(2)).strftime("%Y%m%d")
+    if target_date is None:
+        target_date = (datetime.today() - timedelta(2)).strftime("%Y%m%d")
+
+    print(f"save_stock_price target_date : {target_date}")
 
     params = {
         "serviceKey": key,
         "numOfRows": "5000",
         "pageNo": "1",
         "resultType": "json",
-        "basDt": yesterday
+        "basDt": target_date
     }
 
     try:
