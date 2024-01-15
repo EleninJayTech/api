@@ -1,4 +1,4 @@
-from Libraries.Lotto_api import LottoApi
+from Libraries.LottoApi import LottoApi
 from Libraries.Database import Database
 
 Database.db_database = 'lotto'

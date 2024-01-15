@@ -1,38 +1,57 @@
 import configparser
 import io
 import zipfile
+from datetime import datetime, timedelta
 
 import httpx
-import requests
 import xmltodict
 from fastapi import APIRouter, HTTPException
 
 from Core.Constants import ROOT_DIR
+from Libraries.Database import Database
 from Libraries.Utility import path_slash
 
 router = APIRouter()
 
+
+async def read_config(section, key):
+    """
+    설정 파일로부터 주어진 섹션의 키에 대한 값을 읽어 반환합니다.
+    """
+    config = configparser.ConfigParser()
+    secure_path = f'{ROOT_DIR}/secure.ini'
+    secure_path = path_slash(secure_path)
+    config.read(secure_path)
+    return config[section][key]
+
+
+async def fetch_data(url, params):
+    """
+    비동기적으로 HTTP GET 요청을 보내고 응답을 반환합니다.
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, params=params)
+        response.raise_for_status()
+        return response
+
+
 @router.get("/stock/corp_code/save")
 async def save_corp_code():
-    from Libraries.Database import Database
+    """
+    (새벽 2시) Open DART API를 이용하여 기업 코드를 저장한다.
+    @url https://opendart.fss.or.kr/
+    """
     Database.db_database = 'stock'
 
     print("save_corp_code start")
 
-    config = configparser.ConfigParser()
-
-    secure_path = '{}./secure.ini'.format(ROOT_DIR)
-    secure_path = path_slash(secure_path)
-
-    config.read(secure_path)
-    key = config['API_KEY']['OPEN_DART']
+    key = await read_config('API_KEY', 'OPEN_DART')
     url = "https://opendart.fss.or.kr/api/corpCode.xml"
-
     params = {"crtfc_key": key}
+
     try:
-        resp = requests.get(url, params=params)
-        resp.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
-    except requests.RequestException as e:
+        resp = await fetch_data(url, params)
+    except HTTPException as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     try:
@@ -58,7 +77,8 @@ async def save_corp_code():
                 VALUES (:corp_code, :corp_name, :stock_code, :modify_date) 
                 ON DUPLICATE KEY UPDATE corp_name=:corp_name, stock_code=:stock_code, modify_date=:modify_date
             """
-            params = {'corp_code':corp_code,'corp_name':corp_name,'stock_code':stock_code,'modify_date':modify_date}
+            params = {'corp_code': corp_code, 'corp_name': corp_name, 'stock_code': stock_code,
+                      'modify_date': modify_date}
             SQL, params = Database.bind(SQL, params)
             if not Database.query(SQL, params):
                 print(f"Query failed: {SQL} with params {params}")
@@ -71,28 +91,57 @@ async def save_corp_code():
 
 
 @router.get("/stock/get-price")
-async def get_stock_price():
-    config = configparser.ConfigParser()
+async def save_stock_price():
+    """
+    (새벽 3시) 공공데이터포털에서 주식 가격 정보를 가져온다.
+    항상 2일 전 데이터를 저장한다.
+    @url https://www.data.go.kr/data/15094808/openapi.do#/API%20%EB%AA%A9%EB%A1%9D/getStockPriceInfo
+    """
+    Database.db_database = 'stock'
 
-    secure_path = '{}./secure.ini'.format(ROOT_DIR)
-    secure_path = path_slash(secure_path)
+    print("save_stock_price start")
 
-    config.read(secure_path)
-    key = config['API_KEY']['DATA_GO_KR']
+    key = await read_config('API_KEY', 'DATA_GO_KR')
     url = "https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo"
+
+    yesterday = (datetime.today() - timedelta(2)).strftime("%Y%m%d")
 
     params = {
         "serviceKey": key,
-        "numOfRows": "1000",
+        "numOfRows": "5000",
         "pageNo": "1",
         "resultType": "json",
-        "basDt": "20231227",
-        "beginBasDt": "20231226",
-        "endBasDt": "20231228",
-        "likeSrtnCd": "016790"
+        "basDt": yesterday
     }
-    headers = {"accept": "*/*"}
 
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, params=params, headers=headers)
-        return response.json()
+    try:
+        response = await fetch_data(url, params)
+        stock_price_data = response.json()
+    except HTTPException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    total_count = stock_price_data["response"]["body"]["totalCount"]
+    if total_count == 0:
+        print("No data available for the given date")
+        return False
+
+    items = stock_price_data["response"]["body"]["items"]["item"]
+    for item in items:
+        SQL = """
+            INSERT INTO stock_daily (basDt, srtnCd, isinCd, itmsNm, mrktCtg, clpr, vs, fltRt, mkp, hipr, lopr, trqu, trPrc, lstgStCnt, mrktTotAmt)
+            VALUES (:basDt, :srtnCd, :isinCd, :itmsNm, :mrktCtg, :clpr, :vs, :fltRt, :mkp, :hipr, :lopr, :trqu, :trPrc, :lstgStCnt, :mrktTotAmt)
+            ON DUPLICATE KEY UPDATE isinCd=:isinCd, itmsNm=:itmsNm, mrktCtg=:mrktCtg, clpr=:clpr, vs=:vs, fltRt=:fltRt, mkp=:mkp, hipr=:hipr, lopr=:lopr, trqu=:trqu, trPrc=:trPrc, lstgStCnt=:lstgStCnt, mrktTotAmt=:mrktTotAmt
+        """
+        params = {
+            'basDt': item['basDt'], 'srtnCd': item['srtnCd'], 'isinCd': item['isinCd'], 'itmsNm': item['itmsNm'],
+            'mrktCtg': item['mrktCtg'], 'clpr': item['clpr'], 'vs': item['vs'], 'fltRt': item['fltRt'],
+            'mkp': item['mkp'], 'hipr': item['hipr'], 'lopr': item['lopr'], 'trqu': item['trqu'],
+            'trPrc': item['trPrc'], 'lstgStCnt': item['lstgStCnt'], 'mrktTotAmt': item['mrktTotAmt']
+        }
+        SQL, params = Database.bind(SQL, params)
+        if not Database.query(SQL, params):
+            print(f"Query failed: {SQL} with params {params}")
+
+    print("save_stock_price end")
+
+    return True
