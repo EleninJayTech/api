@@ -1,7 +1,6 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Header
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional
 
 from Lotto.Lotto import router as lotto_router
 from Stock.Stock import router as stock_router

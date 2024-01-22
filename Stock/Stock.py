@@ -91,13 +91,18 @@ async def save_corp_code():
 
 
 @router.get("/stock/get-price")
-async def target_stock_price():
+async def target_stock_price(start_date: str, end_date: str = None):
     '''
     특정 기간 동안의 주식 가격 정보를 가져온다.
+    :param start_date: 시작일 (YYYY-MM-DD)
+    :param end_date: 종료일 (YYYY-MM-DD)
     :return:
     '''
-    start_date = datetime(2024, 1, 2)
-    end_date = datetime(2024, 1, 5)
+    if end_date is None:
+        end_date = start_date
+
+    start_date = datetime(int(start_date[0:4]), int(start_date[5:7]), int(start_date[8:10]))
+    end_date = datetime(int(end_date[0:4]), int(end_date[5:7]), int(end_date[8:10]))
 
     current_date = start_date
     while current_date <= end_date:
