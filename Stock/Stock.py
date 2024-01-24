@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 import httpx
 import xmltodict
 from fastapi import APIRouter, HTTPException
+from selenium.webdriver.common.by import By
+from typing import re
 
 from Core.Constants import ROOT_DIR
 from Libraries.Database import Database
@@ -170,3 +172,92 @@ async def save_stock_price(target_date: str = None):
     print("save_stock_price end")
 
     return True
+
+async def stock_today_price():
+    from selenium import webdriver
+    from selenium.webdriver.chrome.service import Service
+
+    import os
+    import sys
+    import time
+
+    # 디바이스
+    current_device = 'pc'
+    if os.name == 'posix':
+        # 리눅스
+        current_device = 'linux'
+    elif os.name == 'nt':
+        # PC
+        current_device = 'pc'
+
+    print('[DEVICE] {}'.format(current_device))
+
+    # 크롬 드라이버 로드
+    chromedriver_path = '../chromedriver.exe' if current_device == 'pc' else '/usr/local/bin/chromedriver'
+    service = Service(executable_path=chromedriver_path)
+
+    # 크롬 불러오기
+    options = webdriver.ChromeOptions()
+    if current_device == 'linux':
+        options.add_argument('--headless')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+    else:
+        # 유저 정보 추가
+        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36")
+
+    # 브라우저 설정
+    browser = webdriver.Chrome(
+        options= options,
+        service=service
+    )
+
+    # 초이템 로그인
+    url = "https://finance.daum.net"
+    browser.get(url)
+
+    # 지연 시간
+    delay_term = 1
+
+    stock_code_list = ["089600", "89600"]
+
+    browser_info = []
+    browser_info.clear()
+    browser.switch_to.window(browser.window_handles[0])
+    for stock_code in stock_code_list:
+        print('페이지 이동 {}'.format(stock_code))
+        time.sleep(delay_term)
+        new_link = 'https://finance.daum.net/quotes/A{}'.format(stock_code)
+        # 탭 이름
+        tab_name = 'stock_code_{}'.format(stock_code)
+        # 정보 추가
+        browser_info.append(tab_name)
+        # 새탭 열기
+        script_str = "window.open(\"{}\", \"{}\", 'location=yes');".format(new_link, tab_name)
+        browser.execute_script(script_str)
+        # 브라우저 정보 순서대로 윈도우 번호 호출
+        move_tab_idx = browser_info.index(tab_name) + 1
+        # 탭 변경
+        browser.switch_to.window(browser.window_handles[move_tab_idx])
+        # 상품 있는지 확인
+        el_stock_price = browser.find_element(By.CSS_SELECTOR, "#boxSummary > div > span:nth-child(1) > span.currentB > span.numB > strong")
+        stock_price_str = el_stock_price.text
+        stock_price = int(stock_price_str.replace(",", ""))
+        if stock_price is None:
+            # 브라우저 정보 삭제
+            browser_info.remove(tab_name)
+            browser.close()
+            break
+
+        # 새탭 브라우저 종료
+        for tab_info in browser_info:
+            browser.switch_to.window(browser.window_handles[1])
+            browser.close()
+
+        # 메인 브라우저 닫기
+        browser.switch_to.window(browser.window_handles[0])
+        browser.close()
+        # 드라이버 종료
+        browser.quit()
+        sys.exit()

@@ -3,7 +3,7 @@ from fastapi import FastAPI, Header
 from fastapi.middleware.cors import CORSMiddleware
 
 from Lotto.Lotto import router as lotto_router
-from Stock.Stock import router as stock_router
+from Stock.Stock import router as stock_router, stock_today_price
 from Stock.Stock import save_corp_code, save_stock_price
 
 app = FastAPI(title="My Awesome API", description="This is an awesome API that does amazing things.", version="0.0.1")
@@ -35,9 +35,9 @@ scheduler = AsyncIOScheduler()
 @app.on_event("startup")
 async def start_scheduler():
     # 스케줄러에 작업 추가
-    # scheduler.add_job(save_corp_code, "interval", seconds=60)
-    scheduler.add_job(save_corp_code, 'cron', hour=2, minute=0, second=0)
-    scheduler.add_job(save_stock_price, 'cron', hour=3, minute=0, second=0)
+    # scheduler.add_job(save_corp_code, 'cron', hour=2, minute=0, second=0)
+    # scheduler.add_job(save_stock_price, 'cron', hour=3, minute=0, second=0)
+    scheduler.add_job(stock_today_price, "interval", seconds=5)
     # 스케줄러 시작
     scheduler.start()
 
