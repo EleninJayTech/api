@@ -6,8 +6,6 @@ from datetime import datetime, timedelta
 import httpx
 import xmltodict
 from fastapi import APIRouter, HTTPException
-from selenium.webdriver.common.by import By
-from typing import re
 
 from Core.Constants import ROOT_DIR
 from Libraries.Database import Database
@@ -33,6 +31,19 @@ async def fetch_data(url, params):
     """
     async with httpx.AsyncClient() as client:
         response = await client.get(url, params=params)
+        response.raise_for_status()
+        return response
+
+
+async def post_data(url, data):
+    """
+    비동기적으로 HTTP POST 요청을 보내고 응답을 반환합니다.
+    :param url: 요청할 URL
+    :param data: POST 요청과 함께 보낼 데이터
+    :return: 응답 객체
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, data=data)
         response.raise_for_status()
         return response
 
@@ -173,91 +184,44 @@ async def save_stock_price(target_date: str = None):
 
     return True
 
+
+@router.get("/stock/today-price")
 async def stock_today_price():
-    from selenium import webdriver
-    from selenium.webdriver.chrome.service import Service
+    """
+    오늘 날짜의 주식 가격(종가) 정보를 가져온다.
+    @url https://apiportal.koreainvestment.com/intro
+    """
+    Database.db_database = 'stock'
 
-    import os
-    import sys
-    import time
+    print("stock_today_price start")
 
-    # 디바이스
-    current_device = 'pc'
-    if os.name == 'posix':
-        # 리눅스
-        current_device = 'linux'
-    elif os.name == 'nt':
-        # PC
-        current_device = 'pc'
+    ENVIRONMENT = await read_config('system', 'ENVIRONMENT')
+    app_key = await read_config('API_KEY', 'KOREA_INVESTMENT_APP_KEY')
+    app_secret = await read_config('API_KEY', 'KOREA_INVESTMENT_APP_SECRET')
 
-    print('[DEVICE] {}'.format(current_device))
+    url = "https://openapi.koreainvestment.com:9443/oauth2/tokenP" # 운영 URL
+    if ENVIRONMENT == 'development':
+        url = "https://openapivts.koreainvestment.com:29443/oauth2/tokenP" # 테스트 URL
 
-    # 크롬 드라이버 로드
-    chromedriver_path = '../chromedriver.exe' if current_device == 'pc' else '/usr/local/bin/chromedriver'
-    service = Service(executable_path=chromedriver_path)
+    data = {
+        "grant_type": "client_credentials",
+        "appkey": app_key,
+        "appsecret": app_secret
+    }
 
-    # 크롬 불러오기
-    options = webdriver.ChromeOptions()
-    if current_device == 'linux':
-        options.add_argument('--headless')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--disable-gpu')
-    else:
-        # 유저 정보 추가
-        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36")
+    try:
+        response = await post_data(url, data=data)
+        stock_price_data = response.json()
+    except HTTPException as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    # 브라우저 설정
-    browser = webdriver.Chrome(
-        options= options,
-        service=service
-    )
+    access_token = stock_price_data["access_token"]
+    token_type = stock_price_data["token_type"]
+    expires_in = stock_price_data["expires_in"]
+    acess_token_token_expired = stock_price_data["acess_token_token_expired"]
 
-    # 초이템 로그인
-    url = "https://finance.daum.net"
-    browser.get(url)
+    print(f"access_token: {access_token}, token_type: {token_type}, expires_in: {expires_in}, acess_token_token_expired: {acess_token_token_expired}")
 
-    # 지연 시간
-    delay_term = 1
+    print("stock_today_price end")
 
-    stock_code_list = ["089600", "89600"]
-
-    browser_info = []
-    browser_info.clear()
-    browser.switch_to.window(browser.window_handles[0])
-    for stock_code in stock_code_list:
-        print('페이지 이동 {}'.format(stock_code))
-        time.sleep(delay_term)
-        new_link = 'https://finance.daum.net/quotes/A{}'.format(stock_code)
-        # 탭 이름
-        tab_name = 'stock_code_{}'.format(stock_code)
-        # 정보 추가
-        browser_info.append(tab_name)
-        # 새탭 열기
-        script_str = "window.open(\"{}\", \"{}\", 'location=yes');".format(new_link, tab_name)
-        browser.execute_script(script_str)
-        # 브라우저 정보 순서대로 윈도우 번호 호출
-        move_tab_idx = browser_info.index(tab_name) + 1
-        # 탭 변경
-        browser.switch_to.window(browser.window_handles[move_tab_idx])
-        # 상품 있는지 확인
-        el_stock_price = browser.find_element(By.CSS_SELECTOR, "#boxSummary > div > span:nth-child(1) > span.currentB > span.numB > strong")
-        stock_price_str = el_stock_price.text
-        stock_price = int(stock_price_str.replace(",", ""))
-        if stock_price is None:
-            # 브라우저 정보 삭제
-            browser_info.remove(tab_name)
-            browser.close()
-            break
-
-        # 새탭 브라우저 종료
-        for tab_info in browser_info:
-            browser.switch_to.window(browser.window_handles[1])
-            browser.close()
-
-        # 메인 브라우저 닫기
-        browser.switch_to.window(browser.window_handles[0])
-        browser.close()
-        # 드라이버 종료
-        browser.quit()
-        sys.exit()
+    return True
