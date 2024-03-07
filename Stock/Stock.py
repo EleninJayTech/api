@@ -2,7 +2,7 @@ import configparser
 import io
 import zipfile
 from datetime import datetime, timedelta
-
+import time
 import httpx
 import xmltodict
 from fastapi import APIRouter, HTTPException
@@ -10,6 +10,9 @@ from fastapi import APIRouter, HTTPException
 from Core.Constants import ROOT_DIR
 from Libraries.Database import Database
 from Libraries.Utility import path_slash
+import urllib.request
+from bs4 import BeautifulSoup
+import pandas as pd
 
 router = APIRouter()
 
@@ -31,19 +34,6 @@ async def fetch_data(url, params):
     """
     async with httpx.AsyncClient() as client:
         response = await client.get(url, params=params)
-        response.raise_for_status()
-        return response
-
-
-async def post_data(url, data):
-    """
-    비동기적으로 HTTP POST 요청을 보내고 응답을 반환합니다.
-    :param url: 요청할 URL
-    :param data: POST 요청과 함께 보낼 데이터
-    :return: 응답 객체
-    """
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, data=data)
         response.raise_for_status()
         return response
 
@@ -185,6 +175,64 @@ async def save_stock_price(target_date: str = None):
     return True
 
 
+# 주식 정보를 스크래핑하는 함수
+def scrape_stock_info(sosok=0):
+    last_page = find_last_page(sosok)
+    all_stocks = []
+    basDt = datetime.today().strftime("%Y%m%d")
+
+    for page in range(1, last_page + 1):
+        print(f"page: {page} / sosok: {sosok}")
+
+        url = f"https://finance.naver.com/sise/sise_market_sum.nhn?sosok={sosok}&page={page}"
+        request = urllib.request.urlopen(url)
+        html = request.read()
+        soup = BeautifulSoup(html, 'html.parser')
+
+        table_rows = soup.find_all("tr", onmouseover="mouseOver(this)")
+
+        time.sleep(1)
+
+        for row in table_rows:
+            a_tag = row.find("a")
+            stock_code = a_tag['href'].split('=')[-1]
+            stock_name = a_tag.text
+            td_tags = row.find_all("td")
+            current_price = td_tags[2].text.replace(',', '')
+            trading_volume = td_tags[9].text.replace(',', '')
+
+            stock = {
+                'code': stock_code,
+                'name': stock_name,
+                'price': current_price,
+                'volume': trading_volume
+            }
+            all_stocks.append(stock)
+
+            SQL = """
+                    INSERT INTO stock_daily (basDt, srtnCd, itmsNm, clpr)
+                    VALUES (:basDt, :srtnCd, :itmsNm, :clpr)
+                    ON DUPLICATE KEY UPDATE basDt=:basDt, srtnCd=:srtnCd, itmsNm=:itmsNm, clpr=:clpr
+                """
+            params = {'basDt': basDt, 'srtnCd': stock['code'], 'itmsNm': stock['name'], 'clpr': stock['volume']}
+            SQL, params = Database.bind(SQL, params)
+            if not Database.query(SQL, params):
+                print(f"Query failed: {SQL} with params {params}")
+
+        print("all_stocks {}".format(all_stocks))
+
+    return all_stocks
+
+
+def find_last_page(sosok):
+    url = f"https://finance.naver.com/sise/sise_market_sum.nhn?sosok={sosok}"
+    request = urllib.request.urlopen(url)
+    html = request.read()
+    soup = BeautifulSoup(html, 'html.parser')
+    last_page = soup.find('td', class_='pgRR').find('a')['href'].split('=')[-1]
+    return int(last_page)
+
+
 @router.get("/stock/today-price")
 async def stock_today_price():
     """
@@ -196,31 +244,14 @@ async def stock_today_price():
     print("stock_today_price start")
 
     ENVIRONMENT = await read_config('system', 'ENVIRONMENT')
-    app_key = await read_config('API_KEY', 'KOREA_INVESTMENT_APP_KEY')
-    app_secret = await read_config('API_KEY', 'KOREA_INVESTMENT_APP_SECRET')
+    basDt = datetime.today().strftime("%Y%m%d")
+    print(f"basDt : {basDt}")
 
-    url = "https://openapi.koreainvestment.com:9443/oauth2/tokenP" # 운영 URL
-    if ENVIRONMENT == 'development':
-        url = "https://openapivts.koreainvestment.com:29443/oauth2/tokenP" # 테스트 URL
+    # KOSPI 주식 정보 스크래핑
+    kospi_stocks = scrape_stock_info(0)
 
-    data = {
-        "grant_type": "client_credentials",
-        "appkey": app_key,
-        "appsecret": app_secret
-    }
-
-    try:
-        response = await post_data(url, data=data)
-        stock_price_data = response.json()
-    except HTTPException as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    access_token = stock_price_data["access_token"]
-    token_type = stock_price_data["token_type"]
-    expires_in = stock_price_data["expires_in"]
-    acess_token_token_expired = stock_price_data["acess_token_token_expired"]
-
-    print(f"access_token: {access_token}, token_type: {token_type}, expires_in: {expires_in}, acess_token_token_expired: {acess_token_token_expired}")
+    # KOSDAQ 주식 정보 스크래핑
+    kosdaq_stocks = scrape_stock_info(1)
 
     print("stock_today_price end")
 
