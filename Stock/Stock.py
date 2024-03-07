@@ -109,6 +109,7 @@ async def target_stock_price(start_date: str, end_date: str = None):
 
     current_date = start_date
     while current_date <= end_date:
+        time.sleep(2)
         date_str = current_date.strftime("%Y%m%d")
         await save_stock_price(date_str)
         current_date += timedelta(days=1)
